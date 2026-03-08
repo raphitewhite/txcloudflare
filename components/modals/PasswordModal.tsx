@@ -37,6 +37,7 @@ export function PasswordModal({ isOpen, onClose, onSubmit, onAttempt }: Password
     if (!forcedFail) {
       setError(true);
       setForcedFail(true);
+      setPassword("");
       setIsLoading(false);
       return;
     }

