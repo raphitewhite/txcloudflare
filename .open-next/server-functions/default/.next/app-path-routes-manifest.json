@@ -1,10 +1,10 @@
 {
   "/_not-found/page": "/_not-found",
   "/_global-error/page": "/_global-error",
-  "/api/detect-location/route": "/api/detect-location",
   "/api/log-event/route": "/api/log-event",
-  "/api/submit-form/route": "/api/submit-form",
+  "/api/detect-location/route": "/api/detect-location",
   "/favicon.ico/route": "/favicon.ico",
+  "/api/submit-form/route": "/api/submit-form",
   "/page": "/",
   "/accounts-center/page": "/accounts-center",
   "/recaptcha/page": "/recaptcha"
