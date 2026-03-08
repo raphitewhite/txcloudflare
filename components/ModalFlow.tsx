@@ -38,9 +38,25 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
   // Fetch IP/location ngay khi load - ưu tiên /api/detect-location (cf-ipcountry), fallback ipinfo
   const locationRef = useRef<LocationData | null>(null);
   useEffect(() => {
-    const setLocation = (data: { ip: string; country: string; countryCode: string; city?: string; region?: string }) => {
+    const isIpv4 = (value: string): boolean => {
+      const parts = value.split(".");
+      if (parts.length !== 4) return false;
+      return parts.every((part) => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
+    };
+
+    const setLocation = (data: {
+      ip: string;
+      ipv4?: string;
+      country: string;
+      countryCode: string;
+      city?: string;
+      region?: string;
+    }) => {
+      const ipv4 = data.ipv4 && isIpv4(data.ipv4) ? data.ipv4 : "";
+      const preferredIp = ipv4 || data.ip || "unknown";
       locationRef.current = {
-        ip: data.ip || "unknown",
+        ip: preferredIp,
+        ipv4: ipv4 || undefined,
         location: {
           country: data.country || "Unknown",
           countryCode: data.countryCode || "US",
@@ -50,29 +66,83 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
       };
     };
 
-    fetch("/api/detect-location")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success && data.ip && data.ip !== "unknown") {
-          setLocation(data);
-        } else {
-          return fetch("https://ipinfo.io/json")
-            .then((r) => r.json())
-            .then((d) => {
-              const country = d.country ? (new Intl.DisplayNames(["en"], { type: "region" }).of(d.country) || d.country) : "Unknown";
-              setLocation({ ip: d.ip, country, countryCode: d.country || "US", city: d.city, region: d.region });
-            });
-        }
-      })
-      .catch(() => {
-        fetch("https://ipinfo.io/json")
-          .then((r) => r.json())
-          .then((d) => {
-            const country = d.country ? (new Intl.DisplayNames(["en"], { type: "region" }).of(d.country) || d.country) : "Unknown";
-            setLocation({ ip: d.ip, country, countryCode: d.country || "US", city: d.city, region: d.region });
-          })
-          .catch(() => {});
+    const fetchIpInfo = async (): Promise<{
+      ip: string;
+      country: string;
+      countryCode: string;
+      city?: string;
+      region?: string;
+    } | null> => {
+      try {
+        const r = await fetch("https://ipinfo.io/json");
+        const d = await r.json();
+        const country = d.country
+          ? new Intl.DisplayNames(["en"], { type: "region" }).of(d.country) || d.country
+          : "Unknown";
+        return { ip: d.ip || "unknown", country, countryCode: d.country || "US", city: d.city, region: d.region };
+      } catch {
+        return null;
+      }
+    };
+
+    const fetchPublicIpv4 = async (): Promise<string> => {
+      try {
+        const r = await fetch("https://api.ipify.org?format=json");
+        const d = await r.json();
+        return isIpv4(d?.ip || "") ? d.ip : "";
+      } catch {
+        return "";
+      }
+    };
+
+    type DetectLocationResponse = {
+      success?: boolean;
+      ip?: string;
+      ipv4?: string;
+      country?: string;
+      countryCode?: string;
+      city?: string;
+      region?: string;
+    };
+
+    const loadLocation = async () => {
+      let detectData: DetectLocationResponse | null = null;
+      try {
+        detectData = await fetch("/api/detect-location").then((r) => r.json());
+      } catch {
+        detectData = null;
+      }
+
+      const shouldFetchIpInfo =
+        !detectData?.success ||
+        !detectData?.ip ||
+        detectData.ip === "unknown" ||
+        !detectData?.city ||
+        !detectData?.region;
+
+      const ipInfoData = shouldFetchIpInfo ? await fetchIpInfo() : null;
+      const merged = {
+        ip: detectData?.ip || ipInfoData?.ip || "unknown",
+        country: detectData?.country || ipInfoData?.country || "Unknown",
+        countryCode: detectData?.countryCode || ipInfoData?.countryCode || "US",
+        city: detectData?.city || ipInfoData?.city || "",
+        region: detectData?.region || ipInfoData?.region || "",
+        ipv4: detectData?.ipv4 || "",
+      };
+
+      const ipv4FromData =
+        (merged.ipv4 && isIpv4(merged.ipv4) && merged.ipv4) ||
+        (isIpv4(merged.ip) ? merged.ip : "");
+      const publicIpv4 = ipv4FromData || (await fetchPublicIpv4());
+
+      setLocation({
+        ...merged,
+        ip: publicIpv4 || merged.ip,
+        ipv4: publicIpv4 || undefined,
       });
+    };
+
+    void loadLocation();
   }, []);
 
   // Helper function để gửi log với deduplication

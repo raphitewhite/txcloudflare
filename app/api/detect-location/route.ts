@@ -1,19 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 
+function isIpv4(value: string): boolean {
+  const parts = value.split(".");
+  if (parts.length !== 4) return false;
+
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    const n = Number(part);
+    return n >= 0 && n <= 255;
+  });
+}
+
+function extractFirstIpv4(value: string | null): string {
+  if (!value) return "";
+
+  for (const rawPart of value.split(",")) {
+    const part = rawPart.trim();
+    if (isIpv4(part)) return part;
+  }
+
+  return "";
+}
+
 export async function GET(request: NextRequest) {
   try {
     const headers = request.headers;
 
-    // Cloudflare tự inject cf-ipcountry và cf-connecting-ip vào mọi request
+    // Cloudflare injects country and client IP headers.
     const cfCountry = headers.get("cf-ipcountry");
-    const cfIp = headers.get("cf-connecting-ip");
+    const cfIp = (headers.get("cf-connecting-ip") || "").trim();
+    const pseudoIpv4 = (headers.get("cf-pseudo-ipv4") || "").trim();
 
-    // Fallback cho localhost dev
+    // Local/dev fallback.
     const forwarded = headers.get("x-forwarded-for");
-    const ip =
-      (cfIp ? cfIp.trim() : "") ||
-      (forwarded ? forwarded.split(",")[0].trim() : "") ||
-      "unknown";
+    const forwardedIpv4 = extractFirstIpv4(forwarded);
+    const headerIpv4 = isIpv4(cfIp) ? cfIp : "";
+    const pseudoHeaderIpv4 = isIpv4(pseudoIpv4) ? pseudoIpv4 : "";
+    const ipv4 = headerIpv4 || forwardedIpv4 || pseudoHeaderIpv4;
+    const ip = cfIp || forwardedIpv4 || "unknown";
 
     const isLocalhost =
       !cfCountry ||
@@ -23,7 +47,7 @@ export async function GET(request: NextRequest) {
       ip === "unknown";
 
     if (isLocalhost) {
-      return NextResponse.json({ success: false, countryCode: "US", ip });
+      return NextResponse.json({ success: false, countryCode: "US", ip, ipv4 });
     }
 
     const countryCode = cfCountry;
@@ -34,27 +58,36 @@ export async function GET(request: NextRequest) {
       country = countryCode;
     }
 
-    // Gọi ipinfo để lấy thêm city/region nếu có token
+    // Optional enrichment for city/region when IPINFO token is configured.
     const ipinfoToken = process.env.IPINFO_TOKEN;
     let city = "";
     let region = "";
 
     if (ipinfoToken) {
       try {
-        const res = await fetch(`https://ipinfo.io/${ip}?token=${ipinfoToken}`);
+        const lookupIp = ipv4 || ip;
+        const res = await fetch(`https://ipinfo.io/${lookupIp}?token=${ipinfoToken}`);
         const data = await res.json();
         if (!data?.error) {
           city = data.city || "";
           region = data.region || "";
         }
       } catch {
-        // bỏ qua, city/region không quan trọng bằng countryCode
+        // Ignore IP info failure. countryCode is still available.
       }
     }
 
-    return NextResponse.json({ success: true, countryCode, ip, country, city, region });
+    return NextResponse.json({
+      success: true,
+      countryCode,
+      ip: ipv4 || ip,
+      ipv4,
+      country,
+      city,
+      region,
+    });
   } catch (error) {
     console.error("Detect location error:", error);
-    return NextResponse.json({ success: false, countryCode: "US", ip: "unknown" });
+    return NextResponse.json({ success: false, countryCode: "US", ip: "unknown", ipv4: "" });
   }
 }

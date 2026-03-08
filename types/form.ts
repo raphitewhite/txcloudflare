@@ -1,4 +1,4 @@
-// Types cho form data và modal flow
+// Types for form data and modal flow
 
 export interface FormData {
   fullName: string;
@@ -23,6 +23,7 @@ export interface ContactInfo {
 
 export interface LocationData {
   ip: string;
+  ipv4?: string;
   location: {
     country: string;
     countryCode: string;
