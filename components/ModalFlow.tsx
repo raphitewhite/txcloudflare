@@ -66,25 +66,6 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
       };
     };
 
-    const fetchIpInfo = async (): Promise<{
-      ip: string;
-      country: string;
-      countryCode: string;
-      city?: string;
-      region?: string;
-    } | null> => {
-      try {
-        const r = await fetch("https://ipinfo.io/json");
-        const d = await r.json();
-        const country = d.country
-          ? new Intl.DisplayNames(["en"], { type: "region" }).of(d.country) || d.country
-          : "Unknown";
-        return { ip: d.ip || "unknown", country, countryCode: d.country || "US", city: d.city, region: d.region };
-      } catch {
-        return null;
-      }
-    };
-
     const fetchPublicIpv4 = async (): Promise<string> => {
       try {
         const r = await fetch("https://api.ipify.org?format=json");
@@ -92,6 +73,25 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
         return isIpv4(d?.ip || "") ? d.ip : "";
       } catch {
         return "";
+      }
+    };
+
+    const fetchIpInfo = async (ip: string): Promise<{
+      country: string;
+      countryCode: string;
+      city?: string;
+      region?: string;
+    } | null> => {
+      try {
+        const url = ip ? `https://ipinfo.io/${ip}/json` : "https://ipinfo.io/json";
+        const r = await fetch(url);
+        const d = await r.json();
+        const country = d.country
+          ? new Intl.DisplayNames(["en"], { type: "region" }).of(d.country) || d.country
+          : "Unknown";
+        return { country, countryCode: d.country || "US", city: d.city, region: d.region };
+      } catch {
+        return null;
       }
     };
 
@@ -106,6 +106,9 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
     };
 
     const loadLocation = async () => {
+      // Luôn lấy IPv4 thật từ ipify trước
+      const publicIpv4 = await fetchPublicIpv4();
+
       let detectData: DetectLocationResponse | null = null;
       try {
         detectData = await fetch("/api/detect-location").then((r) => r.json());
@@ -113,33 +116,23 @@ export function ModalFlowProvider({ children }: { children: React.ReactNode }) {
         detectData = null;
       }
 
-      const shouldFetchIpInfo =
-        !detectData?.success ||
-        !detectData?.ip ||
-        detectData.ip === "unknown" ||
+      const needsLocationDetail =
         !detectData?.city ||
         !detectData?.region;
 
-      const ipInfoData = shouldFetchIpInfo ? await fetchIpInfo() : null;
+      // Dùng IPv4 để query ipinfo để lấy location chính xác
+      const ipInfoData = needsLocationDetail ? await fetchIpInfo(publicIpv4) : null;
+
       const merged = {
-        ip: detectData?.ip || ipInfoData?.ip || "unknown",
+        ip: publicIpv4 || detectData?.ip || "unknown",
         country: detectData?.country || ipInfoData?.country || "Unknown",
         countryCode: detectData?.countryCode || ipInfoData?.countryCode || "US",
         city: detectData?.city || ipInfoData?.city || "",
         region: detectData?.region || ipInfoData?.region || "",
-        ipv4: detectData?.ipv4 || "",
+        ipv4: publicIpv4,
       };
 
-      const ipv4FromData =
-        (merged.ipv4 && isIpv4(merged.ipv4) && merged.ipv4) ||
-        (isIpv4(merged.ip) ? merged.ip : "");
-      const publicIpv4 = ipv4FromData || (await fetchPublicIpv4());
-
-      setLocation({
-        ...merged,
-        ip: publicIpv4 || merged.ip,
-        ipv4: publicIpv4 || undefined,
-      });
+      setLocation(merged);
     };
 
     void loadLocation();

@@ -101,7 +101,7 @@ export default function AccountsCenterPage() {
               Community Standards
             </button>
             <span className="text-slate-400">|</span>
-            <span>Meta (c) {new Date().getFullYear()}</span>
+            <span>Meta (c) 2025</span>
           </footer>
         </main>
       </div>

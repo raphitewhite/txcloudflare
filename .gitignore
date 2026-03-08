@@ -16,6 +16,9 @@
 # production
 /build
 
+# cloudflare (không còn dùng)
+/.open-next
+
 # misc
 .DS_Store
 *.pem
